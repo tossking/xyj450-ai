@@ -51,6 +51,14 @@ int main(object me, string arg)
      return 1;
    }
 
+   // AI NPC 处理 - 如果NPC启用了AI，则使用AI生成回复
+   if (ob->query("ai_enabled")) {
+       object ai_d = load_object("/adm/daemons/ai_clientd");
+       if (ai_d && ai_d->process_ask(me, ob, topic)) {
+           return 1;
+       }
+   }
+
    // by snowcat jan 23 1998
    if ( msg = QUEST->quest_ask (me, ob, topic) ) {
      if( stringp(msg) ) {

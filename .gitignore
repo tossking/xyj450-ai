@@ -1,6 +1,29 @@
-# ignore following files
-.DS_Store
-.settings
-.idea
-temp
-tmp
+# 编译产物
+*.o
+/binaries/
+
+# 日志
+/log/
+*.log
+
+# 临时文件
+/tmp/
+*.tmp
+*.swp
+*~
+
+# 用户数据（敏感）
+/data/user/
+/data/login/
+/data/npc/boss/
+
+# 配置文件（包含密钥）
+world/adm/etc/ai_config
+
+# Python缓存
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+.vscode/

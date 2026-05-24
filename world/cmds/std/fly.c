@@ -201,15 +201,15 @@ notify_fail("你想飞起来，可是体力似乎有点不支。\n");
             loc = "/d/qujing/lingshan/dalu1.c";
      loc[strlen(loc)-3] = '1'+random(3);
         }else if(arg=="es"){
-            loc = "/d/suburb/es/snow/square.c";
+            loc = "/d/es/snow/square.c";
             if (file_size(loc)==-1)
                 loc = 0;
         }else if(arg=="xkx"){
-            loc = "/d/suburb/xkx/city/guangchang.c";
+            loc = "/d/es/city/guangchang.c";
             if (file_size(loc)==-1)
                 loc = 0;
         }else if(arg=="fy"){
-            loc = "/d/suburb/fy/fy/fysquare.c";
+            loc = "/d/fy/fy/fysquare.c";
             if (file_size(loc)==-1)
                 loc = 0;
         }else{

