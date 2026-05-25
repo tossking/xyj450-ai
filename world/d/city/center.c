@@ -26,10 +26,12 @@ LONG);
      "northwest" : "/d/jjf/qilin",
      "southeast" : "/d/jjf/zuixing",
         ]));
-        set("objects", 
+        set("objects",
         ([ //sizeof() == 1
                 __DIR__"npc/libai" : 1,
      "/d/qujing/wuzhuang/npc/zhangguolao": 1,
+                __DIR__"npc/wuchi" : 1,
+                __DIR__"npc/renwu_shizhe" : 1,
         ]));
 
         set("outdoors", "changan");

@@ -351,3 +351,206 @@ int clear_npc_memory(object npc)
     map_delete(npc_contexts, npc_id);
     return 1;
 }
+
+// 构建自主行动的系统提示
+string build_autonomous_prompt(object npc)
+{
+    mapping ctx = get_npc_context(npc);
+    string personality = ctx["personality"];
+    string name = npc->query("name");
+    object env = environment(npc);
+    string room_desc = "";
+    string people_desc = "";
+    object *inv;
+    object *people;
+    object *players;
+    int i;
+
+    // 获取房间信息
+    if (env) {
+        room_desc = env->query("short") || "";
+        inv = all_inventory(env);
+        people = ({});
+        players = ({});
+
+        // 先收集玩家（优先级更高）
+        for (i = 0; i < sizeof(inv); i++) {
+            if (living(inv[i]) && inv[i] != npc && userp(inv[i])) {
+                players += ({ inv[i] });
+            }
+        }
+
+        // 再收集其他生物
+        for (i = 0; i < sizeof(inv); i++) {
+            if (living(inv[i]) && inv[i] != npc && !userp(inv[i])) {
+                people += ({ inv[i] });
+            }
+        }
+
+        // 合并列表，玩家在前
+        people = players + people;
+
+        if (sizeof(people) > 0) {
+            people_desc = "周围有：";
+            for (i = 0; i < sizeof(people) && i < 5; i++) {
+                people_desc += people[i]->query("name") + "(" + people[i]->query("id") + ")";
+                if (userp(people[i])) people_desc += "[玩家]";
+                if (i < sizeof(people) - 1 && i < 4) people_desc += "、";
+            }
+        }
+    }
+
+    // 根据NPC类型构建不同的提示
+    string npc_id = npc->query("id");
+    string action_prompt = "";
+
+    // 检查NPC类型
+    if (npc_id == "renwu" || npc_id == "shizhe" || npc_id == "tasker" ||
+        strsrch(personality, "任务") >= 0 || strsrch(personality, "发布任务") >= 0) {
+        // 任务使者类型的NPC
+        action_prompt = "重要：你是任务使者，你的主要目的是发布任务和提醒玩家！\n"
+            "- 如果周围有玩家，使用【说话】提醒他们可以接任务\n"
+            "- 偶尔使用【发布任务】来广播任务提示\n"
+            "- 不要主动移动太远\n\n"
+            "行动类型：\n"
+            "【说话】内容 - 主动说一句话\n"
+            "【发布任务】 - 提醒玩家来接任务\n"
+            "【移动】方向 - 移动(north/south/east/west等)\n"
+            "【休息】 - 原地休息\n";
+    } else {
+        // 默认武痴类型的NPC
+        action_prompt = "重要：你是武痴，你的主要目的是找人切磋武艺！\n"
+            "- 如果周围有人，优先使用【挑战】发起战斗\n"
+            "- 【挑战】的格式：目标玩家的英文ID（如god、li bai等）\n"
+            "- 只有在没有人时才使用【说话】或【移动】\n\n"
+            "行动类型：\n"
+            "【挑战】目标ID - 向目标发起挑战并开始战斗\n"
+            "【说话】内容 - 主动说一句话\n"
+            "【移动】方向 - 移动(north/south/east/west等)\n"
+            "【休息】 - 原地休息\n";
+    }
+
+    return sprintf(
+        "你是西游记MUD游戏中的NPC「%s」。\n\n"
+        "人物设定：\n%s\n\n"
+        "当前环境：\n"
+        "房间：%s\n"
+        "%s\n\n"
+        "请决定你接下来要做什么，只能做一个行动。\n"
+        "返回格式（只返回这一行）：\n"
+        "【行动类型】行动数据\n\n"
+        "%s\n"
+        "注意：只返回一行行动指令，不要有多余内容。",
+        name, personality, room_desc, people_desc, action_prompt
+    );
+}
+
+// 处理自主行动响应
+void process_autonomous_response(int fd, string response)
+{
+    string reply = extract_json_string(response, "reply");
+    string action_type, action_data;
+    object npc, player;
+
+    if (!reply || strlen(reply) == 0) {
+        log_file("ai_client", "autonomous_response: empty reply\n");
+        return;
+    }
+
+    log_file("ai_client", sprintf("autonomous reply: %s\n", reply));
+
+    npc = sockets[fd]["npc"];
+    if (!npc) return;
+
+    // 解析行动类型和数据
+    int action_start = strsrch(reply, "【");
+    int action_end = strsrch(reply, "】");
+
+    if (action_start >= 0 && action_end > action_start) {
+        action_type = reply[action_start + 1 .. action_end - 1];
+        action_data = reply[action_end + 1..];
+
+        // 清理多余空格
+        action_data = replace_string(action_data, "  ", " ");
+        action_data = replace_string(action_data, " ", " ");
+
+        log_file("ai_client", sprintf("action_type=%s, action_data=%s\n", action_type, action_data));
+
+        // 执行行动
+        if (npc->execute_ai_action(action_type, action_data)) {
+            log_file("ai_client", "action executed successfully\n");
+        } else {
+            log_file("ai_client", "action execution failed\n");
+        }
+    }
+}
+
+// 自主行动的读回调
+void autonomous_read_callback(int fd, string data)
+{
+    if (!sockets[fd]) return;
+
+    sockets[fd]["response"] += data;
+
+    string response = sockets[fd]["response"];
+    if (strsrch(response, "}") >= 0 && response[<1] == '}') {
+        process_autonomous_response(fd, response);
+        map_delete(sockets, fd);
+        socket_close(fd);
+    }
+}
+
+// 发送自主行动请求
+int process_autonomous_action(object npc)
+{
+    int fd;
+    string request_json;
+    string system_prompt;
+    mapping msg;
+    mapping req;
+
+    if (!npc || !living(npc)) return 0;
+
+    fd = socket_create(STREAM, "autonomous_read_callback", "close_callback");
+    if (fd < 0) {
+        log_file("ai_client", sprintf("autonomous: Failed to create socket: %d\n", fd));
+        return 0;
+    }
+
+    sockets[fd] = ([
+        "npc": npc,
+        "response": "",
+        "outgoing": "",
+        "time": time()
+    ]);
+
+    int result = socket_connect(fd, AI_HOST + " " + AI_PORT, "autonomous_read_callback", "write_callback");
+    if (result != EESUCCESS && result != EECALLBACK) {
+        log_file("ai_client", sprintf("autonomous: Failed to connect: %d\n", result));
+        map_delete(sockets, fd);
+        socket_close(fd);
+        return 0;
+    }
+
+    system_prompt = build_autonomous_prompt(npc);
+
+    // 创建消息映射(不能在数组内直接创建mapping)
+    msg = (["role": "user", "content": "请决定你的下一个行动："]);
+    req = ([
+        "system": system_prompt,
+        "messages": ({msg}),
+        "max_tokens": 100,
+        "timeout": TIMEOUT
+    ]);
+    request_json = json_encode(req);
+
+    sockets[fd]["outgoing"] = request_json;
+
+    if (result == EESUCCESS) {
+        write_callback(fd);
+    }
+
+    call_out("timeout_callback", TIMEOUT, fd);
+
+    return 1;
+}

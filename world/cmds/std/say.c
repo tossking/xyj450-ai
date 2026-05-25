@@ -23,11 +23,13 @@ int main(object me, string arg)
    }
 
    write( CYN "你说道：" + arg + "\n" NOR);
-   tell_room(environment(me), CYN + me->name() + "说道：" +  arg + "\n" NOR,
-             me);
+   if (environment(me)) {
+       tell_room(environment(me), CYN + me->name() + "说道：" +  arg + "\n" NOR,
+                 me);
 
-   // The mudlib interface of say
-   all_inventory(environment(me))->relay_say(me, arg);
+       // The mudlib interface of say
+       all_inventory(environment(me))->relay_say(me, arg);
+   }
 
    return 1;
 }
