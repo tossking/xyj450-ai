@@ -48,6 +48,8 @@
 #define PIG_D      "/adm/auxil/pigd"
 
 #define QUEST_D(x)     ("/daemon/quest/qlist" + x)
+#define QUESTS_D       "/adm/daemons/questsd"
+#define REWARD_D       "/adm/daemons/rewardd"
 #define CLASS_D(x)     ("/daemon/class/" + x)
 #define SKILL_D(x)     ("/daemon/skill/" + x)
 #define CONDITION_D(x)   ("/daemon/condition/" + x)

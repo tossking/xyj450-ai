@@ -3,11 +3,12 @@ inherit NPC;
 inherit F_MASTER;
 
 int s_quest();
-int give_reward(object who,mapping quest);
+int give_reward(object who, mapping quest);
 int time_period(int timep, object me);
 int wait_period(int timep, object me);
 int newbie_quest();
 string sysmsg;
+int complete_fy_quest();
 
 void create() {
 
@@ -113,8 +114,10 @@ int accept_fight(object me) {
 
 
 void init() {
+	::init();
 	add_action("give_quest", "quest");
 	add_action("q_return", "qreturn");
+	add_action("complete_fy_quest", "questdone");
 }
 
 
@@ -272,10 +275,8 @@ int give_quest(string arg) {
 		return 1;
 	}
 	
-	return QUESTS_D->give_quest(this_player(), 
-			([	"name" : this_object()->name(),
-                                "employer" : "天机老人" ])
-			);	
+	return QUESTS_D->give_quest(this_player(),
+			(["name" : "天机老人", "employer" : "天机老人"]) );
 }
 
 
@@ -485,3 +486,41 @@ learn literate from kao guan with 1\n\n"NOR);
 //	if (environment())
 //		command("chat [1;31m风起云涌，天地变色，万物复苏，英雄辈出。[0;32m");
 //}
+
+// 完成风云任务
+int complete_fy_quest() {
+	object me = this_player();
+	mapping quest;
+	int time_left;
+
+	if (!me->query("fy_quest")) {
+		command("say 你没有领取风云任务啊。");
+		return 1;
+	}
+
+	quest = me->query("fy_quest");
+	time_left = me->query("task_time") - time();
+
+	if (time_left <= 0) {
+		command("say 太慢了！任务已经超时了！");
+		me->delete("fy_quest");
+		me->delete("task_time");
+		me->delete("quest_employer");
+		return 1;
+	}
+
+	// 杀怪任务需要标记完成
+	if (quest["quest_type"] == "杀") {
+		if (!me->query("fy_quest_kill_done")) {
+			command("say 你还没有完成任务呢！");
+			command("say 去" + quest["quest_type"] + "『" + quest["quest"] + "』。");
+			return 1;
+		}
+	}
+
+	// 发放奖励
+	QUESTS_D->give_reward(me, this_object(), quest);
+
+	command("say 继续努力！还有更多任务等着你。");
+	return 1;
+}
