@@ -391,14 +391,19 @@ int do_give_wine(object who, object ob)
 
     ai_d->save_relation(npc_id, player_id, rel);
 
-    // 喝酒
-    command("drink " + ob->query("id"));
+    // 先把酒移到李白身上
+    if (ob->move(this_object())) {
+        // 喝酒
+        command("drink " + ob->query("id"));
+
+        // 如果喝完了就扔掉
+        if (ob && ob->query("liquid/remaining") == 0) {
+            command("drop " + ob->query("id"));
+        }
+    }
 
     // 醉酒吟诗
     call_out("recite_after_drink", 2, who, wine_quality);
-
-    // 销毁酒壶
-    destruct(ob);
 
     // 高好感度可能给予奖励
     if (rel["value"] >= 50 && random(100) < 20) {
@@ -409,7 +414,7 @@ int do_give_wine(object who, object ob)
     log_file("ai_libai", sprintf("[%s] %s gave %s to Libai, relation: +%d -> %d\n",
         ctime(time())[0..9], player_id, wine_name, relation_change, rel["value"]));
 
-    return 1;
+    return 2;  // 返回2告诉give.c我们已经处理了物品，不要再操作
 }
 
 // 饮酒后吟诗
