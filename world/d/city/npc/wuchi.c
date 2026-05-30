@@ -36,7 +36,7 @@ void create()
     // AI NPC 配置
     set("ai_enabled", 1);
     set("ai_autonomous", 1);
-    set("ai_action_interval", 30);  // 30秒思考一次
+    set("ai_action_interval", 600);  // 30秒思考一次
 
     set("ai_personality",
         "你是武痴，长安城内赫赫有名的武术狂人。\n\n"

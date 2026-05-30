@@ -87,7 +87,7 @@ void create()
     // AI NPC 配置
     set("ai_enabled", 1);
     set("ai_autonomous", 1);
-    set("ai_action_interval", 45);
+    set("ai_action_interval", 600);
 
     set("ai_personality",
         "你是任务使者，负责给江湖中人分配任务。\n\n"

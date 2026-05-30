@@ -27,3 +27,5 @@ __pycache__/
 # IDE
 .idea/
 .vscode/
+world/adm/etc/ai_config
+world/adm/etc/ai_key

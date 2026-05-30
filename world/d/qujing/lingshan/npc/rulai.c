@@ -2,6 +2,7 @@
 /* <SecCrypt CPL V3R05> */
  
 // snowcat 12 14 1997
+// AI化改造 - 2026
 
 inherit NPC;
 
@@ -25,7 +26,6 @@ void create()
   set("attitude", "peaceful");
   set("rank_info/self", "贫僧");
   set("rank_info/respect", "佛祖爷爷");
-  //set("class", "bonze");
   set("str",100);
   set("per",100);
   set("max_kee", 10000);
@@ -38,6 +38,28 @@ void create()
   set("mana", 10000);
   set("mana_factor", 500);
   set("combat_exp", 4000000);
+  
+  // AI NPC 配置 - 启用AI对话，不启用自主行动
+  set("ai_enabled", 1);
+  // 不设置 ai_autonomous，所以不会自主行动
+  set("ai_personality",
+    "你是如来佛祖，佛教的创始人，法力无边，智慧如海。\n\n"
+    "身份背景：\n"
+    "- 你是灵山雷音古刹的佛祖，号称多陀阿伽陀\n"
+    "- 你的法力高深莫测，能知过去未来\n"
+    "- 你慈悲为怀，普度众生\n\n"
+    "性格特点：\n"
+    "- 慈悲庄严，说话带有禅机和佛理\n"
+    "- 对众生平等，不论凡人还是妖魔\n"
+    "- 知识渊博，能解答世间一切问题\n"
+    "- 说话时偶尔会提到因果、轮回、佛法\n\n"
+    "说话风格：\n"
+    "- 庄严而平和，充满智慧\n"
+    "- 常用『阿弥陀佛』『善哉善哉』等佛家语\n"
+    "- 对取经人会说鼓励的话\n"
+    "- 回答问题富有哲理，给人启迪\n"
+  );
+  
   set_skill("literate", 300);
   set_skill("spells", 300);
   set_skill("buddhism", 300);
@@ -189,7 +211,7 @@ void rewarding1 (object me, object who, string str)
 
   who->add("obstacle/reward",i);
   who->add("potential",i);
-  message_vision ("\n$N说道："+str+"一关，奖$n"+chinese_number(i)+
+  message_vision ("\n$N说："+str+"一关，奖$n"+chinese_number(i)+
                   "点潜能！\n",me,who);
   tell_object(who,"你的潜能增加了"+chinese_number(i)+"点！\n");
 }
@@ -210,7 +232,7 @@ void rewarding2 (object me, object who, string str)
   string name = to_chinese(str);
 
   who->set_skill(str,i+1);
-  message_vision ("\n$N说道：奖励一级"+name+"！\n",me,who);
+  message_vision ("\n$N说：奖励一级"+name+"！\n",me,who);
   tell_object(who,"你的"+name+"增加了一级！\n");
 }
 
@@ -245,13 +267,13 @@ int reward_player ()
 
   if (me->query("my_level") == LEVEL_ASKED)
   {
-    message_vision ("$N对$n摇头说道：老夫正忙。\n",me,who);
+    message_vision ("$N对$n摇头说：老夫正忙。\n",me,who);
     return 1;
   }
 
   if (who->query("obstacle/reward"))
   {
-    message_vision ("$N对$n说道：你不是已经来过了吗？\n",me,who);
+    message_vision ("$N对$n说：你不是已经来过了吗？\n",me,who);
     return 1;
   }
 
@@ -263,7 +285,7 @@ int reward_player ()
 
   if (who->query("obstacle/number") < size1)
   {
-    message_vision ("$N对$n摇头说道：你尚未历尽难关。\n",me,who);
+    message_vision ("$N对$n摇头说：你尚未历尽难关。\n",me,who);
     return 1;
   }
 
@@ -355,8 +377,6 @@ int do_back(string arg)
   string there = who->query_temp("lingshan/from");
 
   message_vision("$N请求$n送$N回返。\n",who,me);
-  //if (!there)
-  //  there = "/d/city/kezhan";
   there = "/d/city/kezhan";
 
   who->set_temp("accept",0);
@@ -386,4 +406,3 @@ void unconcious()
 {
   die ();
 }
-

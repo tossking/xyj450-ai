@@ -20,7 +20,6 @@ int main(object me, string arg)
 {
    string dest, topic, msg;
    object ob;
-// mapping inquiry;
 
    seteuid(getuid());
 
@@ -51,15 +50,15 @@ int main(object me, string arg)
      return 1;
    }
 
-   // AI NPC 处理 - 如果NPC启用了AI，则使用AI生成回复
-   if (ob->query("ai_enabled")) {
-       object ai_d = load_object("/adm/daemons/ai_clientd");
-       if (ai_d && ai_d->process_ask(me, ob, topic)) {
-           return 1;
-       }
+   // 优先检查NPC原有的inquiry（原系统功能）
+   if( msg = ob->query("inquiry/" + topic) ) {
+     if( stringp(msg) ) {
+        message_vision( CYN "$N说道：" + msg + "\n" NOR, ob);
+        return 1;
+     }
    }
 
-   // by snowcat jan 23 1998
+   // 检查quest相关
    if ( msg = QUEST->quest_ask (me, ob, topic) ) {
      if( stringp(msg) ) {
         message_vision( CYN "$N说道：" + msg + "\n" NOR, ob);
@@ -67,13 +66,16 @@ int main(object me, string arg)
      }
    }
 
-   if( msg = ob->query("inquiry/" + topic) ) {
-     if( stringp(msg) ) {
-        message_vision( CYN "$N说道：" + msg + "\n" NOR, ob);
-        return 1;
-     }
-   } else
-     message_vision(msg_dunno[random(sizeof(msg_dunno))], me, ob);
+   // AI NPC 处理 - 如果NPC启用了AI，且没有匹配的原有inquiry
+   if (ob->query("ai_enabled")) {
+       object ai_d = load_object("/adm/daemons/ai_clientd");
+       if (ai_d && ai_d->process_ask(me, ob, topic)) {
+           return 1;
+       }
+   }
+
+   // 都没有匹配，显示不知道
+   message_vision(msg_dunno[random(sizeof(msg_dunno))], me, ob);
 
    return 1;
 }
