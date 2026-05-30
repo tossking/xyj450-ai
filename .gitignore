@@ -29,3 +29,5 @@ __pycache__/
 .vscode/
 world/adm/etc/ai_config
 world/adm/etc/ai_key
+config.ini
+config.ini.server
