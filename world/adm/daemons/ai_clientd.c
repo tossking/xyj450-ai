@@ -208,6 +208,30 @@ void record_gift(string npc_id, string player_id, string gift_name, int value)
     save_relation(npc_id, player_id, rel);
 }
 
+// 记录被玩家杀死（关系变成仇敌）
+void record_killed_by_player(string npc_id, string player_id, string player_name)
+{
+    mapping rel = load_relation(npc_id, player_id);
+    int old_value = rel["value"];
+
+    // 设置为仇敌
+    rel["value"] = -100;
+    rel["fight_count"]++;
+
+    // 记录重要事件
+    if (sizeof(rel["important_events"]) < 50) {
+        rel["important_events"] += ({
+            sprintf("%s|-100|被%s杀死，成为仇敌", ctime(time())[0..9], player_name || player_id)
+        });
+    }
+
+    save_relation(npc_id, player_id, rel);
+
+    // 记录日志
+    log_file("ai_relation", sprintf("[%s] %s killed by %s, relation: %d -> -100\n",
+        ctime(time())[0..9], npc_id, player_id, old_value));
+}
+
 // 构建关系描述（用于AI提示）
 string build_relation_context(string npc_id, string player_id, string player_name)
 {

@@ -75,11 +75,17 @@ void heart_beat()
 {
     object me = this_object();
     object opponent;
+    int kee, max_kee;
+    float hp_ratio;
 
     if (!me) return;
 
+    kee = query("kee");
+    max_kee = query("max_kee");
+    hp_ratio = to_float(kee) / to_float(max_kee);
+
     // 检查HP，如果为负触发失败处理
-    if (query("kee") < 0 || query("sen") < 0) {
+    if (kee < 0 || query("sen") < 0) {
         opponent = query_temp("last_opponent");
         if (opponent && environment(opponent) == environment(me)) {
             lose_combat(opponent);
@@ -88,8 +94,8 @@ void heart_beat()
         }
 
         // 恢复状态
-        set("kee", query("max_kee"));
-        set("eff_kee", query("max_kee"));
+        set("kee", max_kee);
+        set("eff_kee", max_kee);
         set("sen", query("max_sen"));
         set("eff_sen", query("max_sen"));
 
@@ -101,6 +107,33 @@ void heart_beat()
     }
 
     if (!living(me)) return;
+
+    // 检查战斗状态 - 血量低于20%时主动认输
+    if (me->is_fighting() && hp_ratio < 0.2 && !query_temp("surrendering")) {
+        opponent = query_temp("last_opponent");
+        if (opponent && living(opponent) && environment(opponent) == environment(me)) {
+            set_temp("surrendering", 1);  // 防止重复触发
+
+            command("say 好了好了！我认输！你的武功真厉害！");
+            remove_all_killer();
+            opponent->remove_killer(me);
+
+            // 触发失败处理（给奖励等）
+            lose_combat(opponent);
+
+            // 恢复状态
+            set("kee", max_kee);
+            set("eff_kee", max_kee);
+            set("sen", query("max_sen"));
+            set("eff_sen", query("max_sen"));
+
+            set("last_combat_time", time());
+            delete_temp("last_opponent");
+            delete("challenging");
+            delete_temp("surrendering");
+            return;
+        }
+    }
 
     // 检查战斗状态
     if (me->is_fighting()) {

@@ -269,6 +269,19 @@ void die()
 
    if( objectp(killer = query_temp("last_damage_from")) ) {
      set_temp("my_killer", killer->query("id"));
+
+     // AI NPC被玩家杀死，记录仇敌关系
+     if (this_object()->query("ai_enabled") && userp(killer)) {
+         object ai_d = load_object("/adm/daemons/ai_clientd");
+         if (ai_d) {
+             ai_d->record_killed_by_player(
+                 base_name(this_object()),
+                 killer->query("id"),
+                 killer->query("name")
+             );
+         }
+     }
+
      COMBAT_D->killer_reward(killer, this_object());
      if(userp(this_object()))
        log_file("death",sprintf("[%s] %s is killed by %s.\n",
