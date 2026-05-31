@@ -874,6 +874,197 @@ int process_autonomous_action(object npc)
 
 // ==================== 李白自动吟诗系统 ====================
 
+// 李白真实诗库 - 按场景分类
+// 格式：(["场景关键词": ({"诗句1", "诗句2", ...}), ...])
+mapping libai_poems = ([
+    // 酒/饮酒
+    "酒": ({
+        "花间一壶酒，独酌无相亲。举杯邀明月，对影成三人。",
+        "人生得意须尽欢，莫使金樽空对月。天生我材必有用，千金散尽还复来。",
+        "兰陵美酒郁金香，玉碗盛来琥珀光。但使主人能醉客，不知何处是他乡。",
+        "两人对酌山花开，一杯一杯复一杯。我醉欲眠卿且去，明朝有意抱琴来。",
+        "古来圣贤皆寂寞，惟有饮者留其名。",
+        "三杯通大道，一斗合自然。但得酒中趣，勿为醒者传。",
+        "钟鼓馔玉不足贵，但愿长醉不复醒。",
+        "五花马，千金裘，呼儿将出换美酒，与尔同销万古愁。",
+    }),
+    // 月
+    "月": ({
+        "床前明月光，疑是地上霜。举头望明月，低头思故乡。",
+        "青天有月来几时？我今停杯一问之。",
+        "举杯邀明月，对影成三人。",
+        "明月出天山，苍茫云海间。长风几万里，吹度玉门关。",
+        "今人不见古时月，今月曾经照古人。",
+        "我寄愁心与明月，随风直到夜郎西。",
+        "月下独酌无相亲，举杯邀月对影三人。",
+        "白兔捣药秋复春，嫦娥孤栖与谁邻？",
+    }),
+    // 山/山景
+    "山": ({
+        "飞流直下三千尺，疑是银河落九天。",
+        "山随平野尽，江入大荒流。",
+        "两岸猿声啼不住，轻舟已过万重山。",
+        "蜀道之难，难于上青天！",
+        "日照香炉生紫烟，遥看瀑布挂前川。",
+        "天门中断楚江开，碧水东流至此回。",
+        "相看两不厌，只有敬亭山。",
+    }),
+    // 水/江河
+    "水": ({
+        "孤帆远影碧空尽，唯见长江天际流。",
+        "两岸猿声啼不住，轻舟已过万重山。",
+        "天门中断楚江开，碧水东流至此回。",
+        "黄河之水天上来，奔流到海不复回。",
+        "桃花潭水深千尺，不及汪伦送我情。",
+        "山随平野尽，江入大荒流。",
+    }),
+    // 客栈/旅店
+    "客栈": ({
+        "兰陵美酒郁金香，玉碗盛来琥珀光。但使主人能醉客，不知何处是他乡。",
+        "客中行，客中行，不知何处是他乡。",
+    }),
+    // 送别
+    "别": ({
+        "桃花潭水深千尺，不及汪伦送我情。",
+        "挥手自兹去，萧萧班马鸣。",
+        "孤帆远影碧空尽，唯见长江天际流。",
+        "浮云游子意，落日故人情。",
+        "送君千里，终须一别。",
+    }),
+    // 思乡/羁旅
+    "乡": ({
+        "床前明月光，疑是地上霜。举头望明月，低头思故乡。",
+        "此夜曲中闻折柳，何人不起故园情。",
+        "仍怜故乡水，万里送行舟。",
+    }),
+    // 豪情/壮志
+    "豪": ({
+        "长风破浪会有时，直挂云帆济沧海！",
+        "仰天大笑出门去，我辈岂是蓬蒿人！",
+        "大鹏一日同风起，扶摇直上九万里。",
+        "安能摧眉折腰事权贵，使我不得开心颜！",
+        "天生我材必有用，千金散尽还复来。",
+        "十步杀一人，千里不留行。",
+    }),
+    // 愁/忧郁
+    "愁": ({
+        "抽刀断水水更流，举杯消愁愁更愁。",
+        "白发三千丈，缘愁似个长。",
+        "弃我去者，昨日之日不可留。乱我心者，今日之日多烦忧。",
+        "相思相见知何日？此时此夜难为情。",
+    }),
+    // 清晨
+    "清晨": ({
+        "朝辞白帝彩云间，千里江陵一日还。",
+        "日照香炉生紫烟，遥看瀑布挂前川。",
+    }),
+    // 傍晚/黄昏
+    "傍晚": ({
+        "浮云游子意，落日故人情。",
+        "落日故人情，浮云游子意。",
+        "日暮乡关何处是，烟波江上使人愁。",
+    }),
+    // 夜晚
+    "夜": ({
+        "床前明月光，疑是地上霜。举头望明月，低头思故乡。",
+        "举杯邀明月，对影成三人。",
+        "月下独酌无相亲，举杯邀月对影三人。",
+        "今人不见古时月，今月曾经照古人。",
+    }),
+]);
+
+// 尝试从真实诗库中找应景诗句
+string find_matching_poem(object npc)
+{
+    object env = environment(npc);
+    string room_name, room_long;
+    string *exits;
+    mixed *time_info;
+    int hour;
+    string time_desc;
+    string *keywords = ({});
+    string *poems = ({});
+    string poem;
+    int i;
+
+    if (!env) return 0;
+
+    room_name = env->query("short") || "";
+    room_long = env->query("long") || "";
+    exits = keys(env->query("exits") || ({}));
+
+    // 根据房间名称提取关键词
+    if (strsrch(room_name, "酒") >= 0 || strsrch(room_name, "客栈") >= 0 ||
+        strsrch(room_name, "店") >= 0) {
+        keywords += ({"酒"});
+    }
+    if (strsrch(room_name, "山") >= 0 || strsrch(room_name, "峰") >= 0 ||
+        strsrch(room_name, "岭") >= 0) {
+        keywords += ({"山"});
+    }
+    if (strsrch(room_name, "江") >= 0 || strsrch(room_name, "河") >= 0 ||
+        strsrch(room_name, "湖") >= 0 || strsrch(room_name, "水") >= 0) {
+        keywords += ({"水"});
+    }
+    if (strsrch(room_name, "月") >= 0) {
+        keywords += ({"月"});
+    }
+    if (strsrch(room_name, "客") >= 0 || strsrch(room_name, "店") >= 0) {
+        keywords += ({"客栈"});
+    }
+
+    // 根据房间描述提取关键词
+    if (strsrch(room_long, "酒") >= 0 || strsrch(room_long, "饮") >= 0) {
+        keywords += ({"酒"});
+    }
+    if (strsrch(room_long, "山") >= 0) {
+        keywords += ({"山"});
+    }
+    if (strsrch(room_long, "水") >= 0 || strsrch(room_long, "江") >= 0 ||
+        strsrch(room_long, "河") >= 0) {
+        keywords += ({"水"});
+    }
+    if (strsrch(room_long, "月") >= 0) {
+        keywords += ({"月"});
+    }
+
+    // 根据时间提取关键词
+    time_info = NATURE_D->query_time();
+    if (sizeof(time_info) >= 2) {
+        hour = time_info[1];
+        if (hour >= 19 || hour < 5) {
+            keywords += ({"夜", "月"});
+        } else if (hour >= 5 && hour < 8) {
+            keywords += ({"清晨"});
+        } else if (hour >= 17 && hour < 19) {
+            keywords += ({"傍晚"});
+        }
+    }
+
+    // 检查NPC状态
+    int water = npc->query("water") || 0;
+    int max_water = npc->query("max_water") || 400;
+    if (water < max_water / 2) {
+        keywords += ({"酒"});
+    }
+
+    // 根据关键词收集诗句
+    for (i = 0; i < sizeof(keywords); i++) {
+        if (libai_poems[keywords[i]]) {
+            poems += libai_poems[keywords[i]];
+        }
+    }
+
+    // 如果找到应景诗句，随机返回一句
+    if (sizeof(poems) > 0) {
+        poem = poems[random(sizeof(poems))];
+        return poem;
+    }
+
+    // 没有应景诗句，返回0表示需要AI生成
+    return 0;
+}
+
 // 构建吟诗环境描述
 string build_poem_environment(object npc)
 {
@@ -985,6 +1176,33 @@ string build_poem_prompt(object npc)
     );
 }
 
+// 显示诗句的辅助函数 - 必须定义在其他函数之前
+void display_poem(object npc, string poem, int is_real_poem)
+{
+    string *actions = ({
+        "李白举杯吟道",
+        "李白击节而歌",
+        "李白仰望苍天，吟道",
+        "李白醉态吟诵",
+        "李白抚剑长吟",
+        "李白朗声吟道",
+    });
+
+    string action = actions[random(sizeof(actions))];
+    object env = environment(npc);
+
+    if (env) {
+        message("vision", action + "：" + poem + "\n", env, ({npc}));
+    }
+
+    // 记录日志，标记是否为真实诗句
+    log_file("ai_poem", sprintf("[%s] %s [%s]\n",
+        ctime(time())[0..9],
+        poem,
+        is_real_poem ? "真诗" : "AI创作"
+    ));
+}
+
 // 吟诗响应处理
 void poem_read_callback(int fd, string data)
 {
@@ -1010,23 +1228,8 @@ void poem_read_callback(int fd, string data)
                 poem = poem[1..<2];
             }
 
-            // 显示吟诗动作和诗句
-            string *actions = ({
-                "李白举杯吟道",
-                "李白击节而歌",
-                "李白仰望苍天，吟道",
-                "李白醉态吟诵",
-                "李白抚剑长吟",
-                "李白朗声吟道",
-            });
-
-            string action = actions[random(sizeof(actions))];
-            object env = environment(npc);
-            if (env) {
-                message("vision", action + "：" + poem + "\n", env, ({npc}));
-            }
-
-            log_file("ai_poem", sprintf("[%s] %s\n", ctime(time())[0..9], poem));
+            // 显示AI生成的诗句（标记为非真实诗句）
+            display_poem(npc, poem, 0);
         }
 
         map_delete(sockets, fd);
@@ -1037,6 +1240,7 @@ void poem_read_callback(int fd, string data)
 // 发送吟诗请求
 int process_poem_request(object npc)
 {
+    string poem;
     int fd;
     string request_json;
     string system_prompt;
@@ -1045,6 +1249,15 @@ int process_poem_request(object npc)
 
     if (!npc || !living(npc)) return 0;
 
+    // 首先尝试从真实诗库中找应景诗句
+    poem = find_matching_poem(npc);
+    if (poem && strlen(poem) > 0) {
+        // 找到应景的真实诗句，直接显示
+        display_poem(npc, poem, 1);
+        return 1;
+    }
+
+    // 没有找到应景诗句，调用AI生成
     fd = socket_create(STREAM, "poem_read_callback", "close_callback");
     if (fd < 0) return 0;
 
