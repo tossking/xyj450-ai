@@ -326,8 +326,9 @@ int do_challenge(string target_id)
     target->set_temp("challenged_by", me);
     target->set_temp("challenge_reward", reward);
 
-    me->kill_ob(target);
-    target->kill_ob(me);
+    // 切磋用fight_ob，不是kill_ob
+    me->fight_ob(target);
+    target->fight_ob(me);
 
     return 1;
 }
