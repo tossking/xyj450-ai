@@ -871,3 +871,215 @@ int process_autonomous_action(object npc)
 
     return 1;
 }
+
+// ==================== 李白自动吟诗系统 ====================
+
+// 构建吟诗环境描述
+string build_poem_environment(object npc)
+{
+    object env = environment(npc);
+    string desc = "";
+    string room_name, room_long;
+    string *exits;
+    object *inv;
+    object *people;
+    int i;
+    mixed *time_info;
+    int hour;
+    string time_desc;
+
+    if (!env) return "未知环境";
+
+    // 房间信息
+    room_name = env->query("short") || "某处";
+    room_long = env->query("long") || "";
+    exits = keys(env->query("exits") || ({}));
+
+    desc = sprintf("地点：%s\n", room_name);
+
+    // 房间描述（取前200字）
+    if (strlen(room_long) > 0) {
+        if (strlen(room_long) > 200) {
+            room_long = room_long[0..199] + "...";
+        }
+        desc += sprintf("环境：%s\n", room_long);
+    }
+
+    // 出口信息
+    if (sizeof(exits) > 0) {
+        desc += sprintf("出口：%s\n", implode(exits, "、"));
+    }
+
+    // 时间信息
+    time_info = NATURE_D->query_time();
+    if (sizeof(time_info) >= 2) {
+        hour = time_info[1];
+        if (hour >= 5 && hour < 8) time_desc = "清晨";
+        else if (hour >= 8 && hour < 12) time_desc = "上午";
+        else if (hour >= 12 && hour < 14) time_desc = "正午";
+        else if (hour >= 14 && hour < 17) time_desc = "下午";
+        else if (hour >= 17 && hour < 19) time_desc = "傍晚";
+        else if (hour >= 19 && hour < 22) time_desc = "夜晚";
+        else time_desc = "深夜";
+
+        desc += sprintf("时间：%s\n", time_desc);
+
+        // 夜晚特别提示
+        if (hour >= 19 || hour < 5) {
+            desc += "注意：此时明月当空，适合月下独酌。\n";
+        }
+    }
+
+    // 周围人物
+    inv = all_inventory(env);
+    people = ({});
+    for (i = 0; i < sizeof(inv); i++) {
+        if (living(inv[i]) && inv[i] != npc && userp(inv[i])) {
+            people += ({inv[i]});
+        }
+    }
+
+    if (sizeof(people) > 0) {
+        desc += "周围有人：";
+        for (i = 0; i < sizeof(people) && i < 3; i++) {
+            desc += people[i]->query("name");
+            if (i < sizeof(people) - 1 && i < 2) desc += "、";
+        }
+        desc += "\n";
+    } else {
+        desc += "周围无人，只有自己。\n";
+    }
+
+    // NPC自身状态
+    int water = npc->query("water") || 0;
+    int max_water = npc->query("max_water") || 400;
+    if (water < max_water / 3) {
+        desc += "状态：有点口渴，想喝酒。\n";
+    }
+
+    return desc;
+}
+
+// 构建吟诗prompt
+string build_poem_prompt(object npc)
+{
+    string env_desc = build_poem_environment(npc);
+    string name = npc->query("name");
+
+    return sprintf(
+        "你是唐朝诗人李白，号青莲居士，人称诗仙。你现在身处西游记的世界中。\n\n"
+        "你的特点：\n"
+        "- 豪放不羁，诗才绝世\n"
+        "- 爱酒如命，斗酒诗百篇\n"
+        "- 见景生情，触物起兴\n"
+        "- 诗风飘逸，想象奇特\n\n"
+        "吟诗规则：\n"
+        "1. 根据当前环境、时间、心情即兴创作一句诗词\n"
+        "2. 可以化用或改编自己的诗句，也可以创作新句\n"
+        "3. 诗句要符合你的风格：豪放、飘逸、浪漫\n"
+        "4. 每次只吟一句或一联，不要太长\n"
+        "5. 格式要工整，最好五言或七言\n\n"
+        "当前环境：\n%s\n\n"
+        "请直接输出你要吟诵的诗句，不要加任何解释或前缀。只输出诗句本身。",
+        env_desc
+    );
+}
+
+// 吟诗响应处理
+void poem_read_callback(int fd, string data)
+{
+    object npc;
+    string reply;
+    string poem;
+
+    if (!sockets[fd]) return;
+
+    sockets[fd]["response"] += data;
+
+    string response = sockets[fd]["response"];
+    if (strsrch(response, "}") >= 0 && response[<1] == '}') {
+        reply = extract_json_string(response, "reply");
+
+        npc = sockets[fd]["npc"];
+        if (npc && reply && strlen(reply) > 0) {
+            // 清理回复，只保留诗句
+            poem = reply;
+
+            // 去除可能的引号
+            if (poem[0] == '"' && poem[<1] == '"') {
+                poem = poem[1..<2];
+            }
+
+            // 显示吟诗动作和诗句
+            string *actions = ({
+                "李白举杯吟道",
+                "李白击节而歌",
+                "李白仰望苍天，吟道",
+                "李白醉态吟诵",
+                "李白抚剑长吟",
+                "李白朗声吟道",
+            });
+
+            string action = actions[random(sizeof(actions))];
+            object env = environment(npc);
+            if (env) {
+                message("vision", action + "：" + poem + "\n", env, ({npc}));
+            }
+
+            log_file("ai_poem", sprintf("[%s] %s\n", ctime(time())[0..9], poem));
+        }
+
+        map_delete(sockets, fd);
+        socket_close(fd);
+    }
+}
+
+// 发送吟诗请求
+int process_poem_request(object npc)
+{
+    int fd;
+    string request_json;
+    string system_prompt;
+    mapping msg;
+    mapping req;
+
+    if (!npc || !living(npc)) return 0;
+
+    fd = socket_create(STREAM, "poem_read_callback", "close_callback");
+    if (fd < 0) return 0;
+
+    sockets[fd] = ([
+        "npc": npc,
+        "response": "",
+        "outgoing": "",
+        "time": time()
+    ]);
+
+    int result = socket_connect(fd, AI_HOST + " " + AI_PORT, "poem_read_callback", "write_callback");
+    if (result != EESUCCESS && result != EECALLBACK) {
+        map_delete(sockets, fd);
+        socket_close(fd);
+        return 0;
+    }
+
+    system_prompt = build_poem_prompt(npc);
+
+    msg = (["role": "user", "content": "请根据当前环境即兴吟诗一句："]);
+    req = ([
+        "system": system_prompt,
+        "messages": ({msg}),
+        "max_tokens": 100,
+        "timeout": TIMEOUT
+    ]);
+    request_json = json_encode(req);
+
+    sockets[fd]["outgoing"] = request_json;
+
+    if (result == EESUCCESS) {
+        write_callback(fd);
+    }
+
+    call_out("timeout_callback", TIMEOUT, fd);
+
+    return 1;
+}
